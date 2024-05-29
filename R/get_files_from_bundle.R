@@ -139,21 +139,28 @@ create_directories <- function(util){
     dir.create(path='dgea_output/count_genes')
 }
 
+###
+### make_comparison_file(path)
+###
+##  Summary
+##      Get all combination of samples component.
+##
+##  Args
+##      comp (list): components to generate combination from;
+##          It is assumed that the list is in order of encompassment, making it
+##          easier to group element.
+##      path (character vector): directory to write combinations file
+##
+##
+##  Examples
+##      make_comparison_file()
+##      make_comparison_file(path='./data')
+##
 write_txi_file <- function(txi, comparison){
     raw_count <- get_raw_count_anno_df(txi) %>%
         dplyr::select(-c('ensembl_gene', 'entrez_id'))
 
-    v1_loc <- grep(pattern=comparison[1], x=colnames(raw_count))
-    v2_loc <- grep(pattern=comparison[2], x=colnames(raw_count))
-
-    v1 <- raw_count[,v1_loc]
-    v2 <- raw_count[,v2_loc]
-
-    raw_count[paste(comparison[1],'mean', sep='_')] <- rowMeans(v1)
-    raw_count[paste(comparison[1],'std_dev', sep='_')] <- apply(v1, 1, sd)
-    raw_count[paste(comparison[2],'mean', sep='_')] <- rowMeans(v2)
-    raw_count[paste(comparison[2],'std_dev', sep='_')] <- apply(v2, 1, sd)
-
+    raw_count <- get_stats(df=raw_count, celem=comparison)
     tmp_info <- get_tpm_anno_df(txi) %>%
         dplyr::select(-c('ensembl_gene', 'entrez_id'))
 
@@ -171,6 +178,37 @@ write_txi_file <- function(txi, comparison){
         x=de_write,
         file=file.path(path, paste0(namefile, '.csv'))
     )
+}
+
+###
+### get_stats(path)
+###
+##  Summary
+##      Get all combination of samples component.
+##
+##  Args
+##      comp (list): components to generate combination from;
+##          It is assumed that the list is in order of encompassment, making it
+##          easier to group element.
+##      path (character vector): directory to write combinations file
+##
+##
+##  Examples
+##      make_comparison_file()
+##      make_comparison_file(path='./data')
+##
+get_stats <- function(df, celem){
+    lapply(X=celem, FUN=function(x){
+        v_loc <- grep(pattern=x, x=colnames(df))
+        v <- df[,v_loc]
+
+        stat_df <- data.frame(mean=rowMeans(v), std=apply(v, 1, sd))
+        colnames(stat_df) <- c(
+            paste('mean', x, sep='_'),
+            paste('std_dev', x, sep='_')
+            )
+        df <- add_column(df, stat_df, .before = v_loc[1])
+    })
 }
 
 
