@@ -81,6 +81,7 @@ modify_colnames <- function(df, names){
     colnames(df$abundance) <- names
     colnames(df$counts) <- names
     colnames(df$length) <- names
+    colnames(df$fpkm) <- names
 
     df
 }
