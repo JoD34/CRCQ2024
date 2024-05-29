@@ -92,22 +92,24 @@ make_comparison_file <- function(comp, path='.'){
     gp <- comb %>%
         split(f = base) %>%
         lapply(FUN = function(df) combn(df, 2, simplify = FALSE)) %>%
-        unlist %>%
-        matrix(ncol = 2, byrow = TRUE)
+        unlist() %>%
+        matrix(ncol = 2, byrow = TRUE) %>%
+        data.frame()
 
-    # Select pairwise comparison for Enza
-    gp_enza <- sapply(gp, function(x) paste(x, 'ENZA', sep='_')) %>%
-        matrix(byrow=TRUE, ncol=2)
+    gp_enza <- gp
+    gp_enza$X1 <- paste(gp_enza$X1, '_ENZA', sep = "")
+    gp_enza$X2 <- paste(gp_enza$X2, '_ENZA', sep = "")
+
 
     # Generate Enza comparison
     enza <- comb %>%
         lapply(FUN=function(x) c(x, paste(x, 'ENZA', sep='_'))) %>%
         split(f=base) %>%
         unlist() %>%
-        matrix(byrow=TRUE, ncol=2)
+        matrix(byrow=TRUE, ncol=2) %>%
+        data.frame()
 
     w <- rbind(gp, gp_enza, enza)
-
     colnames(w) <- c('base', 'condition')
 
     # Write data into a .csv file
@@ -115,7 +117,6 @@ make_comparison_file <- function(comp, path='.'){
         x=data.frame(w),
         file=file.path(path, 'combinaison.csv')
         )
-    rm(gp, gp_enza, enza, w, comb, base)
 }
 
 #create_directories ----
@@ -135,6 +136,7 @@ create_directories <- function(util){
     dir.create(path='dgea_output/volcanos')
     dir.create(path='dgea_output/data_visualization')
     dir.create(path='dgea_output/deg_list')
+    dir.create(path='dgea_output/dds_output')
     dir.create(path='dgea_output/excel')
     dir.create(path='dgea_output/count_genes')
     dir.create(path='dgea_output/count_tmp')
@@ -239,25 +241,22 @@ get_stats <- function(df, celem){
 ##      make_comparison_file()
 ##      make_comparison_file(path='./data')
 ##
-write_deg <- function(de, anno, path){
-
-    # Get significant genes (p_adj < 0.05)
-    de_write <- de[!is.na(de$padj) & de$padj < 0.05, ]
+write_deg <- function(de, anno, path, namefile){
 
     # Add raw count information from tximport
-    de_write$id <- rownames(de_write)
+    de$id <- rownames(de)
 
     add_on <- anno %>%
         dplyr::select(, -c('entrez_id', "ensembl_gene"))
 
-    de_write <- as.data.frame(de_write) %>%
+    de <- as.data.frame(de) %>%
         inner_join(add_on, by = join_by(id))
 
-    de_write <- de_write %>%
+    de <- de %>%
         dplyr::relocate(colnames(add_on), .before=everything())
 
     readr::write_csv(
-        x=de_write,
+        x=de,
         file=file.path(path, paste0(namefile, '.csv'))
     )
 }
