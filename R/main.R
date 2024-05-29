@@ -8,7 +8,6 @@ source("../rnaseq/R/volcano.R")
 
 # Get data and generate required data structures ----
 path_kallistos <- './deseq2_files'
-path_deg <- './dgea_output/deg_list'
 util_files <- 'files_util'
 component <- list(
     cell=c('DU145', 'VCaP','LAPC4'),
@@ -26,8 +25,7 @@ for (i in 1:nrow(comp)) {
     dgea(
         comparison=comparison,
         kallisto_path=path_kallistos,
-        util=util_files,
-        outfile_deg=path_deg
+        util=util_files
         )
 }
 
