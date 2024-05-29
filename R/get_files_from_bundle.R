@@ -157,12 +157,15 @@ create_directories <- function(util){
 ##      make_comparison_file(path='./data')
 ##
 write_txi_file <- function(txi, comparison){
-    raw_count <- get_raw_count_anno_df(txi) %>%
-        dplyr::select(-c('ensembl_gene', 'entrez_id'))
-    raw_count <- get_stats(df=raw_count, celem=comparison)
 
-    tmp_info <- get_tpm_anno_df(txi) %>%
-        dplyr::select(-c('ensembl_gene', 'entrez_id'))
+    # Get informations from txi object
+    df_count <- get_raw_count_anno_df(txi) %>%
+        dplyr::select(-c('ensembl_gene', 'entrez_id')) %>%
+        get_stats(df=., celem=comparison)
+
+    df_tmp <- get_tpm_anno_df(txi) %>%
+        dplyr::select(-c('ensembl_gene', 'entrez_id')) %>%
+        get_stats(df=., celem=comparison)
 
 
     # Change colnames of info data
@@ -199,18 +202,23 @@ write_txi_file <- function(txi, comparison){
 ##      make_comparison_file(path='./data')
 ##
 get_stats <- function(df, celem){
+    res <- df[,1:3]
     for( c in celem ){
+
+        # Get column's informations
         v_loc <- grep(pattern=c, x=colnames(df))
         v <- df[,v_loc]
 
+        # Generate a stat's subdataframe
         stat_df <- data.frame(mean=rowMeans(v), std=apply(v, 1, sd))
         colnames(stat_df) <- c(
             paste('mean', c, sep='_'),
             paste('std_dev', c, sep='_')
         )
-        df <- add_column(df, stat_df, .before = v_loc[1])
+
+        res <- cbind(res, stat_df)
     }
-    df
+    res
 }
 
 
