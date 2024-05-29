@@ -159,10 +159,11 @@ create_directories <- function(util){
 write_txi_file <- function(txi, comparison){
     raw_count <- get_raw_count_anno_df(txi) %>%
         dplyr::select(-c('ensembl_gene', 'entrez_id'))
-
     raw_count <- get_stats(df=raw_count, celem=comparison)
+
     tmp_info <- get_tpm_anno_df(txi) %>%
         dplyr::select(-c('ensembl_gene', 'entrez_id'))
+
 
     # Change colnames of info data
     anno_col <- c('id', 'symbol', 'transcript_type')
@@ -198,17 +199,18 @@ write_txi_file <- function(txi, comparison){
 ##      make_comparison_file(path='./data')
 ##
 get_stats <- function(df, celem){
-    lapply(X=celem, FUN=function(x){
-        v_loc <- grep(pattern=x, x=colnames(df))
+    for( c in celem ){
+        v_loc <- grep(pattern=c, x=colnames(df))
         v <- df[,v_loc]
 
         stat_df <- data.frame(mean=rowMeans(v), std=apply(v, 1, sd))
         colnames(stat_df) <- c(
-            paste('mean', x, sep='_'),
-            paste('std_dev', x, sep='_')
-            )
+            paste('mean', c, sep='_'),
+            paste('std_dev', c, sep='_')
+        )
         df <- add_column(df, stat_df, .before = v_loc[1])
-    })
+    }
+    df
 }
 
 
