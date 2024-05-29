@@ -170,8 +170,8 @@ write_txi_file <- function(txi, comparison){
 
     # Change colnames of info data
     anno_col <- c('id', 'symbol', 'transcript_type')
-    colnames(raw_count) <- remake_colNames(knames=anno_col, cnames=colnames(raw_count), add_on='raw')
-    colnames(tmp_info) <- remake_colNames(knames=anno_col, cnames=colnames(tmp_info), add_on='tmp')
+    df_count <- remake_colNames(knames=anno_col, df=df_count, add_on='raw')
+    df_tmp <- remake_colNames(knames=anno_col, df=df_tmp, add_on='tmp')
 
     # Get count informations
     add_on <- raw_count %>%
@@ -275,10 +275,13 @@ write_de_files <- function(de, anno, path){
 ##      make_comparison_file()
 ##      make_comparison_file(path='./data')
 ##
-remake_colNames <- function(knames, cnames, add_on){
+remake_colNames <- function(knames, df, add_on){
+    cnames <- colnames(df)
     change <- cnames[!(cnames %in% knames)]
+
     new_col <- sapply(X=change, FUN=function(x) paste(add_on, x, sep='_'))
-    c(knames, as.character(new_col))
+    colnames(df) <- c(knames, new_col)
+    df
 }
 
 ###
