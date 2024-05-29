@@ -21,12 +21,18 @@ library(RColorBrewer)
 ##      dds <- deseq2_analysis(txi, design, ~ group)
 ##      make_dist_matrix(dds)
 ##
-dgea <- function(comparison, kallisto_path=getwd(), util, outfile_deg){
+dgea <- function(comparison, kallisto_path=getwd(), util){
+
+    # relative paths
+    path_deg <- './dgea_output/dds_output'
+    path_deg_list <- './dgea_output/deg_list'
+    path_txi <- 'dgea_output/count_tmp'
+
     namefile <- paste(comparison, collapse='_vs_')
     regX <- sapply(comparison, function(x) paste(x, 'Rep?', sep='_')) %>%
         paste(collapse='|')
 
-    myDir <- list.files(path=path_kallistos, pattern=regX, full.names=TRUE)
+    myDir <- list.files(path=kallisto_path, pattern=regX, full.names=TRUE)
     file <- file.path(myDir, "abundance.h5")
 
     # Generate the anntotation file
@@ -41,6 +47,14 @@ dgea <- function(comparison, kallisto_path=getwd(), util, outfile_deg){
 
     mySamples <- get_samples_name(bundle=myDir)
     txi <- modify_colnames(df=txi, names=mySamples)
+
+    # Write data generated to file
+    write_txi_file(
+        txi=txi,
+        comparison=comparison,
+        path=path_txi,
+        namefile=namefile
+        )
 
     # Make PCA
     pca_df <- produce_pca_df(txi=txi)
@@ -70,30 +84,45 @@ dgea <- function(comparison, kallisto_path=getwd(), util, outfile_deg){
         DESeq2::results(object=dds, name=.)
 
     # Generate graphs
+    fc.seuil=1.3
+    p.seuil=0.05
     make_volcano(
         deg,
-        fc.seuil=1.5,
-        p.seuil=0.01,
+        fc.seuil=fc.seuil,
+        p.seuil=p.seuil,
         title=comparison,
         path='./dgea_output/volcanos',
         filename = namefile
         )
-
-    pdf(file=file.path(('./dgea_output/data_visualization/'),
-                       paste0(namefile, '.pdf')))
-    heat <- make_expr_heatmap(dds)
-    dist.mat <- make_dist_matrix(dds=dds)
+    plots <- list(
+        make_expr_heatmap(dds),
+        make_dist_matrix(dds)
+        )
     pca <- make_PCA(
         dds=dds,
         intgroup=condition,
         titre=unlist(strsplit(namefile, split='_'))
-        )
+    )
+    pdf(file=file.path(('./dgea_output/data_visualization/'),
+                       paste0(namefile, '.pdf')))
+    invisible(lapply(plots, function(p){
+        grid::grid.newpage()
+        grid::grid.draw(p$gtable)
+        }))
+
     print(pca)
     dev.off()
+    dev.off()
 
-    write_de_files(
-        de=deg,
-        txi=txi$anno,
-        path=outfile_deg
-        )
+    # Get significant genes (p_adj < 0.05)
+    seuils <- deg$padj < p.seuil & abs(deg$log2FoldChange) > log2(fc.seuil)
+    deg <- deg[!is.na(deg$padj) & seuils, ]
+
+    # Write DEG files
+    write_deg(de=deg, anno=txi$anno, path=path_deg, namefile=namefile)
+    readr::write_csv(
+        x=data.frame(rownames(deg)),
+        file=file.path(path_deg_list, paste0(namefile, '.csv')),
+        col_names = FALSE
+    )
 }
