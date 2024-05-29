@@ -33,12 +33,12 @@ make_dist_matrix <- function(dds){
     rownames(sampleDistMatrix) <- paste(vsd$condition, vsd$sample, sep=":")
     colnames(sampleDistMatrix) <- NULL
     colors <- colorRampPalette(rev(brewer.pal(name="BuPu", n=9)))(255)
-    dist_mat <- pheatmap(sampleDistMatrix,
-                         clustering_distance_rows=sampleDists,
-                         clustering_distance_cols=sampleDists,
-                         col=colors,
-                         main="Distance matrix")
-    dist_mat
+    pheatmap(
+        sampleDistMatrix,
+        clustering_distance_rows=sampleDists,
+        clustering_distance_cols=sampleDists,
+        col=colors,
+        main="Distance matrix")
 }
 
 # make_volcano ----
@@ -70,8 +70,7 @@ make_volcano <- function(de, fc.seuil, p.seuil, title, path, filename){
     caption <- paste("Produced on", Sys.time())
 
     # Generate and save volcano plot
-    pdf(file=file.path(path, paste0(filename, '.pdf')))
-    produce_volcano(
+    vol <- produce_volcano(
         de_res=de,
         fc_threshold=fc.seuil,
         p_threshold=p.seuil,
@@ -80,7 +79,7 @@ make_volcano <- function(de, fc.seuil, p.seuil, title, path, filename){
         subtitle=subtitle,
         caption=caption
     )
-    dev.off()
+    ggsave(filename=file.path(path, paste0(filename, '.pdf')))
 }
 
 # make_expr_heatmap ----
@@ -114,13 +113,13 @@ make_expr_heatmap <- function(dds){
         dplyr::select('lignee', 'hormone', 'replicate')
 
     # Generate heatmap
-    heat <- pheatmap(
+    pheatmap(
         mat=mine,
         show_colnames=FALSE,
         show_rownames=FALSE,
         annotation_col=anno_heat
         )
-    heat
+
 }
 
 # make_PCA ----
@@ -155,7 +154,7 @@ make_PCA <- function(dds, intgroup, titre){
                          sep=' ')
 
     # plotPCA
-    pca <- ggplot(pcaData) +
+    ggplot(pcaData) +
         aes(PC1, PC2, color=group, shape=rep) +
         geom_point(size=3) +
         labs(title = graph_title,
@@ -164,5 +163,4 @@ make_PCA <- function(dds, intgroup, titre){
              caption = paste("Produced on", Sys.time())) +
         coord_fixed() +
         theme_bw()
-    pca
 }
