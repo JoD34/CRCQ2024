@@ -137,6 +137,7 @@ create_directories <- function(util){
     dir.create(path='dgea_output/deg_list')
     dir.create(path='dgea_output/excel')
     dir.create(path='dgea_output/count_genes')
+    dir.create(path='dgea_output/count_tmp')
 }
 
 ###
@@ -156,7 +157,7 @@ create_directories <- function(util){
 ##      make_comparison_file()
 ##      make_comparison_file(path='./data')
 ##
-write_txi_file <- function(txi, comparison){
+write_txi_file <- function(txi, comparison, path, namefile){
 
     # Get informations from txi object
     df_count <- get_raw_count_anno_df(txi) %>%
@@ -174,12 +175,11 @@ write_txi_file <- function(txi, comparison){
     df_tmp <- remake_colNames(knames=anno_col, df=df_tmp, add_on='tmp')
 
     # Get count informations
-    add_on <- raw_count %>%
-        inner_join(tmp_info,
-                   by = join_by(id, ensembl_gene, symbol, entrez_id, transcript_type)
-        )
+    write_file <- df_count %>%
+        inner_join(df_tmp, by = join_by(id, symbol, transcript_type) )
+
     readr::write_csv(
-        x=de_write,
+        x=write_file,
         file=file.path(path, paste0(namefile, '.csv'))
     )
 }
@@ -239,18 +239,22 @@ get_stats <- function(df, celem){
 ##      make_comparison_file()
 ##      make_comparison_file(path='./data')
 ##
-write_de_files <- function(de, anno, path){
+write_deg <- function(de, anno, path){
 
     # Get significant genes (p_adj < 0.05)
     de_write <- de[!is.na(de$padj) & de$padj < 0.05, ]
 
     # Add raw count information from tximport
     de_write$id <- rownames(de_write)
+
+    add_on <- anno %>%
+        dplyr::select(, -c('entrez_id', "ensembl_gene"))
+
     de_write <- as.data.frame(de_write) %>%
-        dplyr::relocate(id, .before=everything())
+        inner_join(add_on, by = join_by(id))
 
     de_write <- de_write %>%
-        left_join(add_on, by = join_by(id))
+        dplyr::relocate(colnames(add_on), .before=everything())
 
     readr::write_csv(
         x=de_write,
