@@ -38,7 +38,7 @@ dgea <- function(comparison, kallisto_path=getwd(), util){
     # Generate the anntotation file
     out_dir <- make_annotation_file(
         name = namefile,
-        path = myDir,
+        paths = myDir,
         path_out = util
         )
 
@@ -84,7 +84,7 @@ dgea <- function(comparison, kallisto_path=getwd(), util){
         DESeq2::results(object=dds, name=.)
 
     # Generate graphs
-    fc.seuil=1.3
+    fc.seuil=0.01
     p.seuil=0.05
     make_volcano(
         deg,
@@ -115,7 +115,7 @@ dgea <- function(comparison, kallisto_path=getwd(), util){
     dev.off()
 
     # Get significant genes (p_adj < 0.05)
-    seuils <- deg$padj < p.seuil & abs(deg$log2FoldChange) > log2(fc.seuil)
+    seuils <- deg$padj < p.seuil
     deg <- deg[!is.na(deg$padj) & seuils, ]
 
     # Write DEG files

@@ -1,7 +1,6 @@
 # Load requiered libraries ----
 library(biomaRt)
 library(tidyverse)
-
 # make_annotation_file ----
 ###
 ### make_annotation_file(path)
@@ -16,25 +15,21 @@ library(tidyverse)
 ##  Examples
 ##      make_annotation_file("data/")
 ##
-make_annotation_file <- function(name, paths=getwd(), path_out=getwd()){
+make_annotation_file <- function(name, paths, path_out=getwd()){
 
-    # List all kallisto output files
-    stopifnot(all(dir.exists(paths)))
-    stopifnot(dir.exists(path_out))
+    paths <- sub(pattern='.h5', replacement='.tsv', x=paths)
 
     # Get all unique transcipt's id
-    trans <- lapply(paths, function(dir){
-        paste0(dir, '\\abundance.tsv') %>%
-            read.csv(. , sep="\t") %>%
-            dplyr::select("target_id")
+    trans <- lapply(paths, function(f){
+        read.csv(f, sep='\t') %>%
+            dplyr::select('target_id') %>%
+            as.matrix %>%
+            as.character
     }) %>%
         unlist() %>%
         unique()
 
-    mart <- useEnsembl(
-        biomart="genes",
-        dataset="hsapiens_gene_ensembl"
-    )
+    mart <- useEnsembl(biomart="genes", dataset="hsapiens_gene_ensembl")
 
     # Retrieve annotation of transcripts
     attr <- c(
@@ -44,7 +39,13 @@ make_annotation_file <- function(name, paths=getwd(), path_out=getwd()){
         'transcript_biotype'
     )
 
-    anno <- getBM(attributes=attr, values=trans, filters = 'ensembl_transcript_id_version', mart=mart)
+    anno <- getBM(
+        attributes=attr,
+        values=trans,
+        filters = 'ensembl_transcript_id_version',
+        mart=mart
+    )
+
     names(anno) <- c('id', 'ensembl_gene', 'symbol', 'transcript_type')
 
     anno$entrez_id <- NA

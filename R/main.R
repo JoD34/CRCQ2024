@@ -19,7 +19,7 @@ make_comparison_file(path=util_files, comp=component)
 comp <- read.csv(file.path(util_files,'combinaison.csv'))
 rm(component)
 
-for (i in 1:nrow(comp)) {
+for (i in 40:nrow(comp)) {
     print(paste('Row:', i, sep=' '))
     comparison <- as.character(comp[i, ])
     dgea(

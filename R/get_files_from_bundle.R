@@ -173,7 +173,7 @@ write_txi_file <- function(txi, comparison, path, namefile){
 
     # Change colnames of info data
     anno_col <- c('id', 'symbol', 'transcript_type')
-    df_count <- remake_colNames(knames=anno_col, df=df_count, add_on='raw')
+    df_count <- remake_colNames(knames=anno_col, df=df_count, add_on='count')
     df_tmp <- remake_colNames(knames=anno_col, df=df_tmp, add_on='tmp')
 
     # Get count informations
