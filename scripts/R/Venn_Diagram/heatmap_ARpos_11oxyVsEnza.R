@@ -82,31 +82,32 @@ purrr::walk(r_object, ~ {
 
     # Build output directory
     filedir <- paste(file.output, infos$name.lineage, sep = '_')
-    filename <- paste(filedir, 'unscaled.pdf', sep = '_')
-    title <-  paste0('Fold Change of 11 oxy in ',infos$name.lineage,' - Effect of enzalutamide')
 
-    # Generate general heatmap
-    Make_HeatMap(
-        plot.data = data.heatmap,
-        filename = filename,
-        title = title,
-        scale = FALSE,
-        ccluster = FALSE
-    )
+    # Set variables values
+    shorten <- c(FALSE, FALSE, TRUE)
+    number <- c(TRUE, FALSE, FALSE)
+    title <-  paste0('Fold Change of 11 oxy in ', infos$name.lineage, ' - Effect of enzalutamide')
 
-    # Generate a heatmap comparing each hormones with its counter part affected by enza
-    purrr::walk(c('11KT', '11OHT'), ~ {
-
-        subset_heatmap(
-            plot.data = data.heatmap,
-            pattern = .x,
-            title = sub(pattern = '11 oxy', replacement = .x, x = title),
-            scale = FALSE,
-            unscale = TRUE,
-            ccluster = FALSE,
-            beg.filename = filedir
+    walk2(shorten, number, ~{
+        # Generate the various filenames
+        filename <- paste(
+            filedir,
+            ifelse(.x, 'shorten', 'long'),
+            ifelse(.y, 'with_number', ''),
+            'unscaled.pdf',
+            sep = '_'
         )
 
+        # Generate general heatmap
+        Make_HeatMap(
+            plot.data = data.heatmap,
+            filename = filename,
+            title = title,
+            scale = FALSE,
+            shorten = .x,
+            display_numbers = .y,
+            ccluster = FALSE
+        )
     })
 
     if(FALSE){
@@ -126,19 +127,35 @@ purrr::walk(r_object, ~ {
     }
     })
 
-# Generate HeatMap for gene expression on jointe on VCaP & LAPC4 for 11oxy
-generate_whole_heatmap(
-    pattern.files = pattern.files,
-    rds_files = dir.de.rds,
-    dir.commun = fs::path(dir.venns, 'Hormones_ARp'),
-    xlsx.sheetname = hormones,
-    xlsx.col = 'Both.ENSEMBL',
-    scale = FALSE,
-    filename.heatmap = fs::path(dir.output, paste(version, 'ARpos','shorten','scaled.pdf',sep = '_')),
-    title.heatmap = 'Fold Change - 11oxy specific'
+shorten <- c(FALSE, FALSE, TRUE)
+number <- c(TRUE, FALSE, FALSE)
+title <- paste('Fold Change of 11oxy genes - Combined AR+ cell lineage')
+
+walk2(shorten, number, ~ {
+    file.out <- paste0(
+        version,
+        '_ARpos',
+        ifelse(.x,'_shorten', ''),
+        ifelse(.y, '_withNumbers', ''),
+        '_unscaled.pdf'
     )
 
-# Generate HeatMap for intersection VCaP-LAPC4 for AR+ question
+    # Generate HeatMap for gene expression on jointe on VCaP & LAPC4 for 11oxy
+    generate_whole_heatmap(
+        pattern.files = pattern.files,
+        rds_files = dir.de.rds,
+        dir.commun = fs::path(dir.venns, 'Hormones_ARp'),
+        xlsx.sheetname = hormones,
+        xlsx.col = 'Both.ENSEMBL',
+        shorten = .x,
+        display_numbers = .y,
+        scale = FALSE,
+        filename.heatmap = fs::path(dir.output, file.out),
+        title.heatmap = title
+    )
+})
+
+    # Generate HeatMap for intersection VCaP-LAPC4 for AR+ question
 generate_whole_heatmap(
     pattern.file = pattern.files,
     rds_files = dir.de.rds,

@@ -8,54 +8,7 @@ library(grDevices)
 library(RColorBrewer)
 library(magrittr)
 
-
-#' Convert Ensembl IDs to Gene Symbols
-#'
-#' This function converts Ensembl gene IDs to gene symbols for a given data frame.
-#' The conversion is done using the `org.Hs.eg.db` package which provides
-#' the necessary mappings.
-#'
-#' @param df A data frame with Ensembl gene IDs as row names. Each row should
-#'   correspond to a gene, and the row names should be Ensembl IDs.
-#'
-#' @return A data frame with gene symbols as row names. The content of the data frame
-#'   remains unchanged, but the row names are updated to gene symbols.
-#'
-#' @importFrom org.Hs.eg.db select
-#' @importFrom AnnotationDbi keys
-#' @importFrom AnnotationDbi columns
-#' @import org.Hs.eg.db
-#'
-#' @examples
-#' \dontrun{
-#' # Example usage
-#' # Assuming you have a data frame 'df' with Ensembl IDs as row names
-#' df <- data.frame(matrix(rnorm(100), nrow=10))
-#' rownames(df) <- c("ENSG00000141510", "ENSG00000284733", "ENSG00000238009",
-#'                   "ENSG00000141837", "ENSG00000139618", "ENSG00000182185",
-#'                   "ENSG00000138022", "ENSG00000182157", "ENSG00000163654",
-#'                   "ENSG00000185102")
-#' df_converted <- ensembl_to_symbol(df)
-#' }
-#' @export
-ensembl_to_symbol <- function(df){
-
-    # Get column of ensembl_id and remove it from df
-    genes <- df$ensembl_gene
-    df <- df %>% dplyr::select(-ensembl_gene)
-
-    # Get associated symbols and assigned as row names
-    symbols <- AnnotationDbi::select(org.Hs.eg.db, keys = genes, keytype = "ENSEMBL", columns = "SYMBOL")
-
-    symbols <- symbols %>%
-        group_by(ENSEMBL) %>%
-        summarise(SYMBOL = paste(unique(SYMBOL), collapse = "/")) %>%
-        ungroup()
-
-    rownames(df) <- symbols$SYMBOL
-
-    df
-}
+source('./scripts/R/util.R')
 
 #' Create and Save a Heatmap with Clustering
 #'
@@ -132,14 +85,10 @@ Make_HeatMap <- function(plot.data, filename, title, scale = TRUE, rcluster = TR
 
         # Cell esthetic
         border_color = NA,                     # Border
-        cellwidth = ifelse(shorten, NA, 20),   # Width
-        cellheight = ifelse(shorten, NA, 4),   # Height
+        cellwidth = ifelse(shorten, 40, 20),   # Width
+        cellheight = ifelse(shorten, 1.5, 4),   # Height
         display_numbers = display_numbers,     # log2 Fold Change or Z-score
         color = color,                         # Color of ploted data
-
-        # Legend
-        breaks = breaks ,
-        legends_breaks = c('upregulated', 'downregulated'),
 
         # Fontsizes
         fontsize = 5,
@@ -155,13 +104,12 @@ Make_HeatMap <- function(plot.data, filename, title, scale = TRUE, rcluster = TR
         lwd = 0.5,
 
         # Display names
-        show_rownames = ifelse(shorten,FALSE,TRUE),       # Show gene names
+        show_rownames = ifelse(shorten, FALSE, TRUE),       # Show gene names
         show_colnames = TRUE,       # Show sample names
         main = title,
 
-        # Output
-        filename = filename,        # Directory to save the heatmap
-
+        # Output file
+        filename = filename
     )
 }
 
@@ -406,49 +354,66 @@ correct.color_scaling <- function(df){
 #' @importFrom dplyr select matches
 #' @importFrom base readRDS
 #' @export
-generate_whole_heatmap <- function(
-        pattern.files, rds_files, dir.commun,
-        xlsx.sheetname, xlsx.col, filename.heatmap, title.heatmap,
-        scale = TRUE
-)
+generate_whole_heatmap <- function(pattern.files, rds_files, dir.commun,
+                                   xlsx.sheetname, xlsx.col, filename.heatmap,
+                                   title.heatmap, scale = TRUE,
+                                   display_numbers = TRUE, shorten = FALSE)
 {
-    # Generate heatmap for AR+ cell lineages (e.g. VCaP & LAPC4) ----
+    # Get file names
     r_object <-list.files(path = rds_files, pattern = pattern.files)
 
-    sets <- sub(pattern='__DMSO_de.rds', replacement='', x=r_object)
-
-    # Get exclusive gene's log2 Fold Change ----
-    dir.r_objects <- file.path(rds_files, r_object)  # Get directory
-    files.r_objects <- lapply(X = dir.r_objects, FUN = function(path){
-        base::readRDS(file = path) %>%
-            dplyr::select(ensembl_gene,log2FoldChange)
-    }) %>% setNames(sets)
-
-    # Get Excel file absolute path to directories ----
-    file.commun <- list.files(path = dir.commun, pattern = '^[^~].*\\.xlsx$', full.names = TRUE)
+    # Extract the columns name (eg the set name)
+    sets <- sub('^(.*)__DMSO.*', '\\1', r_object)
 
     # Get list of genes exclusive to 11oxy ----
-    genes.11oxy <- lapply(X = xlsx.sheetname, function(sheet){
-        get_genes_excel_table(xlsx.file = file.commun, sheet = sheet , col.include = xlsx.col)
-    }) %>% unlist %>% unique
+    genes.11oxy <- xlsx.sheetname %>%
+        map(~ get_genes_excel_table(
+            xlsx.file = fs::dir_ls(path = dir.commun, regexp = '.*.xlsx$'),
+            sheet = .x ,
+            cols = xlsx.col)) %>%
+        unlist() %>%
+        unique()
 
-    # Join gene expression into a single dataset on ensemble_id
-    df.heatmap <- Reduce(function(x, y) merge(x, y, by = "ensembl_gene", all = TRUE), files.r_objects)
-    colnames(df.heatmap) <- c('ensembl_gene', sets)
+    # Join gene expression into a single dataset, ready to generate heatmap
+    df <- fs::path(rds_files, r_object) %>%
+        map(~ {
+            base::readRDS(.x) %>%
+                dplyr::filter(ensembl_gene %in% genes.11oxy) %>%
+                dplyr::select(ensembl_gene,log2FoldChange)
+            }) %>%
+        purrr::reduce(full_join , by = 'ensembl_gene') %>%
+        dplyr::mutate(ensembl_gene = switchIds(ensembl_gene)[ensembl_gene]) %>%
+        tibble::column_to_rownames('ensembl_gene') %>%
+        setNames(sets) %>%
+        na.omit()
 
-    # Restructure heatmap
-    df.heatmap <- df.heatmap %>%
-        dplyr::select(-matches("11OHT"), matches('11OHT')) %>%
-        dplyr::select(-matches("ENZA"), matches('ENZA')) %>%
-        subset(x=., subset = ensembl_gene %in% genes.11oxy) %>%
-        na.omit
+    # Prepare various representations - With and without enzalutamides
+    reorder.cols <- list(
+        hormone_withEnza = df[order(sub(".*__", "", sets))] %>%
+            dplyr::select(-matches('ENZA', .), matches('ENZA', .)),
+        cell_withEnza = df[order(sub("__.*", "", sets))] %>%
+            dplyr::select(-matches('ENZA', .), matches('ENZA', .))
+    )
 
-    # Switch ID from ensembl ID to symbol
-    df.heatmap <- ensembl_to_symbol(df = df.heatmap)
+    reorder.cols$hormone_withoutEnza <- reorder.cols$hormone_withEnza %>%
+        dplyr::select(-matches('ENZA'))
+    reorder.cols$cell_withoutEnza <- reorder.cols$cell_withEnza %>%
+        dplyr::select(-matches('ENZA'))
 
-    # Build output directory
-    Make_HeatMap(plot.data = df.heatmap, filename = filename.heatmap,
-                 ccluster = FALSE, dendogram = FALSE, title = title.heatmap,
-                 shorten = FALSE, display_numbers = TRUE, scale = scale)
+    purrr::iwalk(reorder.cols, ~ {
 
+        filename <- sub(pattern = '.pdf', replacement = paste0('_', .y,'.pdf'), x = filename.heatmap)
+
+        # Build output directory
+        Make_HeatMap(
+            plot.data = .x,
+            filename = filename,
+            ccluster = FALSE,
+            dendogram = TRUE,
+            title = title.heatmap,
+            shorten = shorten,
+            display_numbers = display_numbers,
+            scale = scale
+        )
+    })
 }
