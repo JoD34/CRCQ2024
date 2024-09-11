@@ -280,9 +280,9 @@ generate_info_txi <- function(txi, path, cells){
             dplyr::rename_with( ~ {
                 # Make a custom function to generate the new columns name
                 stringr::str_replace(., 'std', paste0('_std_', suffix))
-            }) %>%
+            }) #%>%
             # Integrate the row names within the data.frame
-            dplyr::mutate(id = rownames(df))
+           # dplyr::mutate(id = rownames(df))
     }
 
     # Generate 'count' and 'tpm' values

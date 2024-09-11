@@ -1,0 +1,203 @@
+---
+title: "Gene Set Enrichment Analysis"
+author: "Joseph Descarreaux"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+First, we need to set our function to generate representation further in the analysis.
+
+# Functions
+
+First, the function used for the dotplot representations.
+```{r fun_dotplot}
+vis.dotplot <- function(obj, db, filename, path){
+
+    # Make dotplot ----
+    enrichplot::dotplot(
+        object = obj,
+        color = 'p.adjust',
+        font.size = 10,
+        title = paste(db, "Dotplot of enriched pathways", sep = ' - ')
+    )
+
+    # Save dotPlot
+    ggsave(filename = filename, path = path )
+}
+```
+
+Second, the function for the ridgeplot representation
+
+```{r fun_ridgeplot}
+vis.ridgeplot <- function(obj, db, filename, path){
+
+    # Generate Ridge plot
+    enrichplot::ridgeplot(
+        x = obj,
+        label_format = 30
+    ) +
+        # Reduce the character size for the axis informations
+        theme(
+            axis.text.x = element_text(size = 8),  # Adjust the x-axis text size
+            axis.text.y = element_text(size = 8)   # Adjust the y-axis text size
+        ) +
+        labs(
+            title = "Ridgeplot of enriched pathways",
+            subtitle = paste('Database used : MSigDb', db, sep = ' - '),
+            caption = Sys.time())
+
+    # Save Ridge Plot
+    ggsave(filename = filename, path = path )
+}
+
+```
+
+Third. the function for the context network
+
+```{r fun_cnetplo}
+vis.cnetplot <- function(obj, ranked.list, db, path, filename){
+    # Useful to visualize the relationship between enriched pathways
+    enrichplot::cnetplot(
+        obj,
+        categorySize = "p.adjust",
+        showCategory = nrow(obj@result),
+        node_label = "category",
+        foldChange = ranked.list,
+        colorEdge = FALSE,
+        cex_label_category = 0.5
+    ) +
+        # Personalize the color scale for the Fold Change
+        scale_color_gradient2(name='log2(FC)', low='darkblue', high='firebrick') +
+        # Add labels to the general plot
+        labs(
+            title = 'Graph representation of shared expressed gene',
+            subtitle = paste('Database : MSigDB -', db, 'set'),
+            caption = Sys.time())
+
+    # Save Concept Network Plot
+    ggsave(filename = filename, path = path)
+}
+```
+
+Fourth, the homemade representation of the gseaplot with heatmap
+```{r fun_gseaplot}
+vis.gseaplot <- function(obj, path, txi.info){
+    # Extract title information
+    title <- obj@result$Description
+    obj@result$Description <- ''
+    # Extracted genes to subset the txi object for the heatmap
+    enriched_genes <- obj@result$core_enrichment %>%
+        stringr::str_split(., '/')
+    # Generate the output directory
+    out.gsea <- fs::path(path, 'plotGSEA')
+
+    # Iterate over all enriched pathways
+    for (i in seq_len(nrow(obj@result))) {
+        # Generate GSEAplot
+        gsea.plot <- enrichplot::gseaplot2(
+            x = obj,
+            geneSetID = i,
+            color = "#86B875",
+            title = paste(title[i],'(',txi.info$cell,'-',txi.info$hormone,')'),
+            pvalue_table = TRUE,
+            ES_geom = 'line'
+        )
+
+        # Susbet heatmap information
+        heat.data <- txi$counts %>%
+            as.data.frame %>%
+            dplyr::select(matches(txi.info$cell)) %>%
+            dplyr::select(matches(txi.info$hormone), matches('DMSO')) %>%
+            dplyr::filter(rownames(.) %in% enriched_genes[[i]]) %>%
+            setNames( sub('.*_(.*)_.*','\\1', colnames(.)))
+
+        heat.plot <- pheatmap::pheatmap(
+            heat.data,
+            color = grDevices::colorRampPalette(
+                rev(RColorBrewer::brewer.pal(n = 7, name ="RdBu")))(100),
+            scale = 'row',
+            cluster_cols = FALSE,
+            treeheight_row = 0,
+            cellwidth = 10,
+            show_rownames = FALSE,
+            na_col = 'darkgrey'
+        )
+        # Change obejct type from their respective type to ggplot
+        gg.heat <- ggplotify::as.ggplot(heat.plot)
+        gg.gsea <- ggplotify::as.ggplot(gsea.plot)
+
+        # Concatenate plot unto a single pdf file
+        gg.gsea + gg.heat + patchwork::plot_layout(widths = c(5,1))
+        # Save plot
+        ggsave(
+            filename = paste(title[i] ,'gseaplot_heatmap.pdf', sep = '_'),
+            path = out.gsea,
+            height = 4.34, width = 8.31, units = 'in'
+        )
+    }
+}
+```
+
+Additionnal, this is an little function to switch ENSEMBL gene ids, used in the
+gsea analysis to their symbol counterpart, making it more readable for professionals
+```{r fun_idSwitch}
+excel.table <- function(df){
+    df$core_enrichment <- df$core_enrichment %>%
+        map(~ {
+            paste(switchIds(stringr::str_split_1(string = .x, pattern = '/')),
+                  collapse = '/')
+        })
+    df
+}
+```
+
+# Running the GSEAnalysis
+
+We first need to set our path accordingly. 
+```{r path}
+## Define paths ----
+paths <- list(
+    rds = './dgea_output/rds',
+    output = './output_deseq2_pval0.01/gsea/clusterProfiler',
+    kallisto = './deseq2_files/',
+    anno = './files_util/anno'
+)
+
+paths$rds.output <- fs::path(paths$output, 'rds')
+if(!dir.exists(paths$rds.output))dir.create(paths$rds.output, recursive = TRUE)
+
+```
+This is what each path should represent:
+
++ 'rds' : Directory to get the object generated from the DESeq2 analysis. 
++ 'output' : Directory to output the generated files
++ 'kalisto' : Directory to get the count data, used for the heatmap
++ 'anno' : Directory to the annotation file, used to generated the object of count data
++ 'rds.output' : Directory to store the ouput the object generated from the GSEA analysis
+
+## Generate the count object
+
+To get the count data, we need to generate a txi object from the kallisto data.
+
+The following code will retrieve every needed file to load the count data.
+```{r get_counts, eval=FALSE}
+# Get kallisto files
+k.files <- fs::dir_ls(paths$kallisto, regexp = '.h5$', recurse = TRUE) %>%
+    '['(!grepl('DU145|ENZA',.))
+
+# Get annotation informations
+anno.file <- fs::dir_ls(paths$anno, regexp = 'protein_coding.csv$')
+
+# Import full kallisto informations
+txi <-  rnaseq::import_kallisto(
+    filenames = k.files,
+    anno = anno.file,
+    ignoreTxVersion = TRUE
+)
+
+# Change column's name
+samples <- fs::path_dir(k.files) %>% fs::path_file(.)
+colnames(txi$counts) <-  samples
+colnames(txi$abundance) <- samples
+colnames(txi$length) <- samples
+```

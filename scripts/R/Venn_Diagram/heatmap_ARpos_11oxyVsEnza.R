@@ -16,7 +16,7 @@ regex.hormones <-paste(hormones, collapse = '|')
 pattern.files <- paste0("^(",regex.cell_lineage,")__(",regex.hormones,").*__DMSO_de\\.rds$")
 
 # Update cell version
-version <- 'v6'
+version <- 'v8'
 
 # Set directories' path to variables ----
 dir.output <- file.path(getwd(), 'dgea_output/heatmap_ARpos_11oxy')
@@ -129,7 +129,7 @@ purrr::walk(r_object, ~ {
 
 shorten <- c(FALSE, FALSE, TRUE)
 number <- c(TRUE, FALSE, FALSE)
-title <- paste('Fold Change of 11oxy genes - Combined AR+ cell lineage')
+title <- paste('Fold Change of 11KT & 11OHT expression - Intersection of AR+ cell lineage')
 
 walk2(shorten, number, ~ {
     file.out <- paste0(
@@ -144,8 +144,8 @@ walk2(shorten, number, ~ {
     generate_whole_heatmap(
         pattern.files = pattern.files,
         rds_files = dir.de.rds,
-        dir.commun = fs::path(dir.venns, 'Hormones_ARp'),
-        xlsx.sheetname = hormones,
+        dir.commun = dir.commun_genes[[1]],
+        xlsx.sheetname = cell_lineage,
         xlsx.col = 'Both.ENSEMBL',
         shorten = .x,
         display_numbers = .y,

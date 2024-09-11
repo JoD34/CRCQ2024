@@ -367,12 +367,13 @@ generate_whole_heatmap <- function(pattern.files, rds_files, dir.commun,
 
     # Get list of genes exclusive to 11oxy ----
     genes.11oxy <- xlsx.sheetname %>%
-        map(~ get_genes_excel_table(
-            xlsx.file = fs::dir_ls(path = dir.commun, regexp = '.*.xlsx$'),
-            sheet = .x ,
-            cols = xlsx.col)) %>%
-        unlist() %>%
-        unique()
+        map(~ openxlsx::read.xlsx(
+            xlsxFile = fs::dir_ls(path = dir.commun, regexp = '.*.xlsx$'),
+            sheet = .x) %>%
+                dplyr::select(matches(paste(hormones, collapse = '|'))) %>%
+                dplyr::select(-matches('R1881')) %>%
+                unlist(use.names = FALSE) %>% na.omit() %>% unique
+            ) %>% unlist %>% unique
 
     # Join gene expression into a single dataset, ready to generate heatmap
     df <- fs::path(rds_files, r_object) %>%

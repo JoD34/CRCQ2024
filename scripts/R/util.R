@@ -75,17 +75,12 @@ get.genes_infos <- function(df, file.infos, filename,
 
     # Separate the hormone's name if the set is an intersect of two hormones
     h <- if(grepl(pattern = '\\.', x = file.infos$hormone)){
-
         strsplit(file.infos$hormone, "\\.")[[1]]
-
-    } else {
-
-        file.infos$hormone
-    }
+    } else { file.infos$hormone }
 
     # Formatting the path to the directory
     file <- paste(rep(file.infos$cell, length(h)), h,'DMSO_de.rds', sep = '__')
-    filename %<>%  file.path(file)
+    filename %<>% file.path(file)
 
     # Retrieve the Log2FoldChange for the genes of interest
     dea <- filename %>%
@@ -100,13 +95,9 @@ get.genes_infos <- function(df, file.infos, filename,
 
     # Apply modification if a gene has more than one fold change assigned
     if( length(dea) != 1 ){
-
         dea <- dplyr::bind_rows(dea)
-
     } else {
-
         dea <- dea[[1]]
-
     }
 
     # Return the information in a dataframe type value

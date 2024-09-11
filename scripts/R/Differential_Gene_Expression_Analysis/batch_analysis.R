@@ -31,7 +31,7 @@ lapply(scripts, source)
 # Base paths
 path_kallistos <- './deseq2_files/'
 path_util <- './files_util'
-path_out <- './dgea_output'
+path_out <- './output_deseq2_pval0.01'
 
 # Utility files
 paths_util <- list(
